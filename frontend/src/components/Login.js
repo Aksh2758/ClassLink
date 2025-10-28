@@ -28,6 +28,7 @@ const Login = () => {
         role, 
       });
       if (response.data.success) {
+        localStorage.setItem("token", response.data.token);
         if (role === "faculty") window.location.href = "/faculty/FacultyDashboad";
         else if (role === "student") window.location.href = "/student/StudentDashboard";
         else if (role === "admin") window.location.href = "/admin/AdminDashboard";
