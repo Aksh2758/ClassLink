@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import StudentTimetable from "./StudentTimetable";
 
 const StudentDashboard = () => {
   const [student, setStudent] = useState(null);
@@ -40,6 +41,7 @@ const StudentDashboard = () => {
       <p><strong>USN:</strong> {student.usn}</p>
       <p><strong>Email:</strong> {student.email}</p>
       <button>Profile</button>
+      <StudentTimetable studentId={student.usn}/>
     </div>
   );
 };

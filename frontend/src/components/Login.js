@@ -1,37 +1,43 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import collegeBackground from './college.jpg'; // Import your image
 
 const Login = () => {
   const [role, setRole] = useState("");
-  const [id, setId] = useState(""); // USN or email
+  const [identifier, setIdentifier] = useState(""); // Changed from 'login_id' to 'identifier'
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-  
+  const [isHoveringLogin, setIsHoveringLogin] = useState(false); // For button hover
+  const [isHoveringSelect, setIsHoveringSelect] = useState(false); // For select dropdown hover
+
+  const navigate = useNavigate(); // Initialize useNavigate
+
   const handleSubmit = async (e) => {
-    console.log("handleSubmit called!"); 
-    e.preventDefault(); 
-    console.log("preventDefault executed!"); 
+    e.preventDefault();
 
     if (!role) {
       setMessage("Please select a role before logging in.");
       return;
     }
-    if (!id || !password) {
-        setMessage("Please enter both ID and password.");
-        return;
+    if (!identifier || !password) { // Changed from 'login_id' to 'identifier'
+      setMessage("Please enter both ID/Email and password.");
+      return;
     }
 
     try {
       const response = await axios.post("http://localhost:5000/login", {
-        id, 
-        password, 
-        role, 
+        identifier, // Changed from login_id
+        password,
+        role,
       });
       if (response.data.success) {
         localStorage.setItem("token", response.data.token);
-        if (role === "faculty") window.location.href = "/faculty/FacultyDashboad";
-        else if (role === "student") window.location.href = "/student/StudentDashboard";
-        else if (role === "admin") window.location.href = "/admin/AdminDashboard";
+        if (role === "faculty") navigate("/faculty/dashboard");
+        else if (role === "student") navigate("/student/dashboard");
+        else if (role === "admin") navigate("/admin/dashboard"); // Assuming an admin dashboard exists
+      } else {
+        setMessage(response.data.message || "Login failed.");
       }
     } catch (error) {
       console.error("Login error:", error);
@@ -40,82 +46,163 @@ const Login = () => {
       } else {
         setMessage("Login failed. Please check your network or try again.");
       }
+      setPassword(""); // Clear password on error for security
     }
   };
 
+  // ... (rest of your component code, styles, etc. remains the same)
+  const backgroundStyle = {
+    minHeight: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundImage: `url(${collegeBackground})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    transition: "background-image 0.5s ease-in-out",
+  };
+
+  const loginBoxStyle = {
+    maxWidth: "400px",
+    width: "90%",
+    padding: "30px",
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    borderRadius: "15px",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
+    textAlign: "center",
+  }
+
+  const inputStyle = {
+    width: "calc(100% - 20px)",
+    padding: "10px",
+    marginBottom: "15px",
+    borderRadius: "8px",
+    border: "1px solid #ccc",
+    fontSize: "16px",
+    boxSizing: "border-box",
+  };
+
+  const selectWrapperStyle = {
+    position: 'relative',
+    marginBottom: "15px",
+  };
+
+  const selectStyle = {
+    ...inputStyle,
+    appearance: 'none',
+    paddingRight: '30px',
+    cursor: 'pointer',
+    backgroundColor: isHoveringSelect ? "#e0e0e0" : "white",
+    transition: "background-color 0.3s ease",
+  };
+
+  const selectArrowStyle = {
+    position: 'absolute',
+    right: '10px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    pointerEvents: 'none',
+    color: '#555',
+  };
+
+  const buttonStyle = {
+    width: "100%",
+    padding: "12px",
+    backgroundColor: isHoveringLogin ? "#0056b3" : "#007bff",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "18px",
+    fontWeight: "bold",
+    boxShadow: isHoveringLogin ? "0 8px 16px rgba(0, 123, 255, 0.4)" : "none",
+    transition: "background-color 0.3s ease, box-shadow 0.3s ease",
+  };
+
+  const messageStyle = {
+    marginTop: "20px",
+    fontSize: "1.1em",
+    color: message.includes("successful") ? "green" : "#dc3545",
+    fontWeight: "bold",
+  };
+
   return (
-    <div style={{ maxWidth: "400px",alignItems: "center", margin: "auto", textAlign: "center", padding: "20px", border: "1px solid #ccc", borderRadius: "8px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
-      <h2>Login</h2>
+    <div style={backgroundStyle}>
+      <div style={loginBoxStyle}>
+        <h2 style={{ marginBottom: "25px", color: "#333", fontSize: "2em" }}>Welcome!</h2>
 
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: "15px" }}>
-          <label htmlFor="role-select" style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Select Role:</label>
-          <select
-            id="role-select"
-            value={role}
-            onChange={(e) => {
-              setRole(e.target.value);
-              setId(""); 
-              setMessage(""); 
-            }}
-            required
-            style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ddd" }}
+        <form onSubmit={handleSubmit}>
+          <div style={selectWrapperStyle}
+            onMouseEnter={() => setIsHoveringSelect(true)}
+            onMouseLeave={() => setIsHoveringSelect(false)}
           >
-            <option value=""> Login as </option>
-            <option value="student">Student</option>
-            <option value="faculty">Faculty</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
+            <label htmlFor="role-select" style={{ display: "block", marginBottom: "8px", fontWeight: "bold", textAlign: "left", color: "#555" }}>
+              Login as:
+            </label>
+            <select
+              id="role-select"
+              value={role}
+              onChange={(e) => {
+                setRole(e.target.value);
+                setIdentifier(""); // Changed from setId to setIdentifier
+                setMessage("");
+              }}
+              required
+              style={selectStyle}
+            >
+              <option value="">-- Select Role --</option>
+              <option value="student">Student</option>
+              <option value="faculty">Faculty</option>
+              <option value="admin">Admin</option> {/* Added admin role */}
+            </select>
+            <span style={selectArrowStyle}>&#9662;</span>
+          </div>
 
-        {role && (
-          <div style={{ marginBottom: "15px" }}>
-            <label htmlFor="id-input" style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+          {role && (
+            <div style={{ marginBottom: "15px" }}>
+              <label htmlFor="id-input" style={{ display: "block", marginBottom: "8px", fontWeight: "bold", textAlign: "left", color: "#555" }}>
                 {role === "student" ? "USN:" : "Email:"}
+              </label>
+              <input
+                id="id-input" // Corrected attribute from login_id to id
+                type={role === "student" ? "text" : "email"}
+                placeholder={role === "student" ? "Enter your USN" : "Enter your Email"}
+                value={identifier} // Changed from login_id
+                onChange={(e) => setIdentifier(e.target.value)} // Changed from setId to setIdentifier
+                required
+                style={inputStyle}
+              />
+            </div>
+          )}
+
+          <div style={{ marginBottom: "25px" }}>
+            <label htmlFor="password-input" style={{ display: "block", marginBottom: "8px", fontWeight: "bold", textAlign: "left", color: "#555" }}>
+              Password:
             </label>
             <input
-              id="id-input"
-              type={role === "student" ? "text" : "email"}
-              placeholder={role === "student" ? "Enter your USN" : "Enter your Email"}
-              value={id}
-              onChange={(e) => setId(e.target.value)}
+              id="password-input"
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
-              style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ddd" }}
+              style={inputStyle}
             />
           </div>
-        )}
 
-        <div style={{ marginBottom: "20px" }}>
-          <label htmlFor="password-input" style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Password:</label>
-          <input
-            id="password-input"
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ddd" }}
-          />
-        </div>
+          <button
+            type="submit"
+            style={buttonStyle}
+            onMouseEnter={() => setIsHoveringLogin(true)}
+            onMouseLeave={() => setIsHoveringLogin(false)}
+          >
+            Login
+          </button>
+        </form>
 
-        <button
-          type="submit"
-          style={{
-            width: "100%",
-            padding: "10px",
-            backgroundColor: "#007bff",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "16px"
-          }}
-        >
-          Login
-        </button>
-      </form>
-
-      {message && <p style={{ marginTop: "20px", color: message.includes("successful") ? "green" : "red" }}>{message}</p>}
+        {message && <p style={messageStyle}>{message}</p>}
+      </div>
     </div>
   );
 };
