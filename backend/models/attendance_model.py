@@ -1,4 +1,4 @@
-# backend/models/attendance_model.py
+# models/attendance_model.py
 from utils.db_connection import get_db_connection
 from datetime import datetime
 
@@ -51,7 +51,8 @@ class AttendanceModel:
             if conn: conn.close()
 
     @staticmethod
-    def get_class_session_by_details(date_str, period_number, dept_code, semester, subject_code, faculty_user_id, section):
+    # --- MODIFIED: Removed period_number from signature ---
+    def get_class_session_by_details(date_str, dept_code, semester, subject_code, faculty_user_id, section):
         """
         Fetches an existing class_session_id based on a specific set of class details.
         This is crucial before marking attendance.
@@ -95,17 +96,16 @@ class AttendanceModel:
             assignment_id = assignment['assignment_id']
             
             # Now, find the class_session
-            # We need the day_of_week for class_sessions table
             session_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            day_of_week = session_date.strftime('%A') # e.g., 'Monday'
 
             cursor.execute(
                 """
                 SELECT session_id
                 FROM class_sessions
-                WHERE assignment_id = %s AND session_date = %s AND period_number = %s
+                WHERE assignment_id = %s AND session_date = %s
                 """,
-                (assignment_id, session_date, period_number)
+                # --- MODIFIED: Removed period_number from WHERE clause ---
+                (assignment_id, session_date)
             )
             session = cursor.fetchone()
             return session['session_id'] if session else None
@@ -118,7 +118,8 @@ class AttendanceModel:
             if conn: conn.close()
 
     @staticmethod
-    def create_class_session_from_template(assignment_id, session_date_str, period_number):
+    # --- MODIFIED: Removed period_number from signature ---
+    def create_class_session_from_template(assignment_id, session_date_str):
         """
         Creates a new class_session entry if it doesn't already exist,
         typically invoked by a faculty for the first time marking attendance,
@@ -136,8 +137,9 @@ class AttendanceModel:
 
             # Check if session already exists
             cursor.execute(
-                "SELECT session_id FROM class_sessions WHERE assignment_id = %s AND session_date = %s AND period_number = %s",
-                (assignment_id, session_date, period_number)
+                "SELECT session_id FROM class_sessions WHERE assignment_id = %s AND session_date = %s",
+                # --- MODIFIED: Removed period_number from WHERE clause ---
+                (assignment_id, session_date)
             )
             existing_session = cursor.fetchone()
             if existing_session:
@@ -146,10 +148,11 @@ class AttendanceModel:
             # If not, create it
             query = """
             INSERT INTO class_sessions
-                (assignment_id, session_date, day_of_week, period_number)
-            VALUES (%s, %s, %s, %s)
+                (assignment_id, session_date, day_of_week)
+            VALUES (%s, %s, %s)
             """
-            cursor.execute(query, (assignment_id, session_date, day_of_week, period_number))
+            # --- MODIFIED: Removed period_number from INSERT ---
+            cursor.execute(query, (assignment_id, session_date, day_of_week))
             conn.commit()
             return cursor.lastrowid
         except Exception as e:
@@ -248,27 +251,13 @@ class AttendanceModel:
             subject_id = ids.get('subject_id')
 
             query = """
-            SELECT
-                cs.session_id,
-                cs.session_date,
-                cs.day_of_week,
-                cs.period_number,
-                s.subject_code,
-                s.subject_name,
-                fd.name AS faculty_name,
-                fa.section
-            FROM
-                class_sessions cs
-            JOIN
-                faculty_assignment fa ON cs.assignment_id = fa.assignment_id
-            JOIN
-                subject_offerings so ON fa.offering_id = so.offering_id
-            JOIN
-                subjects s ON so.subject_id = s.subject_id
-            JOIN
-                faculty_details fd ON fa.faculty_id = fd.faculty_id
-            WHERE
-                so.dept_id = %s AND so.semester = %s AND fa.section = %s
+            SELECT cs.session_id, cs.session_date, cs.day_of_week, s.subject_code, s.subject_name,fd.name AS faculty_name,fa.section
+            FROM class_sessions cs
+            JOIN faculty_assignment fa ON cs.assignment_id = fa.assignment_id
+            JOIN subject_offerings so ON fa.offering_id = so.offering_id
+            JOIN subjects s ON so.subject_id = s.subject_id
+            JOIN faculty_details fd ON fa.faculty_id = fd.faculty_id
+            WHERE so.dept_id = %s AND so.semester = %s AND fa.section = %s
             """
             params = [dept_id, semester, section]
 
@@ -282,7 +271,8 @@ class AttendanceModel:
                 query += " AND cs.session_date <= %s"
                 params.append(end_date)
 
-            query += " ORDER BY cs.session_date DESC, cs.period_number ASC"
+            # --- MODIFIED: Removed period_number from ORDER BY ---
+            query += " ORDER BY cs.session_date DESC"
             cursor.execute(query, tuple(params))
             return cursor.fetchall()
         except Exception as e:
@@ -304,18 +294,10 @@ class AttendanceModel:
             cursor = conn.cursor(dictionary=True)
 
             query = """
-            SELECT
-                a.attendance_id,
-                a.status,
-                sd.student_id,
-                sd.name AS student_name,
-                sd.usn
-            FROM
-                attendance a
-            JOIN
-                student_details sd ON a.student_id = sd.student_id
-            WHERE
-                a.session_id = %s
+            SELECT a.attendance_id, a.status, sd.student_id, sd.name AS student_name, sd.usn
+            FROM attendance a
+            JOIN student_details sd ON a.student_id = sd.student_id
+            WHERE a.session_id = %s
             ORDER BY sd.usn
             """
             cursor.execute(query, (session_id,))
@@ -371,24 +353,13 @@ class AttendanceModel:
             student_id = ids['student_id']
 
             query = """
-            SELECT
-                COUNT(a.attendance_id) AS total_sessions,
-                SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present_sessions,
-                s.subject_code,
-                s.subject_name,
-                so.semester
-            FROM
-                attendance a
-            JOIN
-                class_sessions cs ON a.session_id = cs.session_id
-            JOIN
-                faculty_assignment fa ON cs.assignment_id = fa.assignment_id
-            JOIN
-                subject_offerings so ON fa.offering_id = so.offering_id
-            JOIN
-                subjects s ON so.subject_id = s.subject_id
-            WHERE
-                a.student_id = %s
+            SELECT COUNT(a.attendance_id) AS total_sessions, SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present_sessions, s.subject_code, s.subject_name, so.semester
+            FROM attendance a
+            JOIN class_sessions cs ON a.session_id = cs.session_id
+            JOIN faculty_assignment fa ON cs.assignment_id = fa.assignment_id
+            JOIN subject_offerings so ON fa.offering_id = so.offering_id
+            JOIN subjects s ON so.subject_id = s.subject_id
+            WHERE a.student_id = %s
             GROUP BY s.subject_id, so.semester
             ORDER BY so.semester, s.subject_name
             """

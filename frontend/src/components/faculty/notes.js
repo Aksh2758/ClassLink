@@ -17,29 +17,33 @@ const NotesUpload = ({ FacultyId }) => {
   };
 
   const handleUpload = async (e) => {
+    const authToken = localStorage.getItem('token');
+
+    if (!authToken) {
+        setMessage("Upload failed: User not logged in. Please log in first.");
+        console.error("No authentication token found. User is not logged in.");
+        return; 
+    }
     e.preventDefault();
     if (!file) {
       setMessage("Please select a file first!");
       return;
     }
-
-    if (!FacultyId) {
-        setMessage("Error: Faculty ID is not available. Please try logging in again.");
-        console.error("FacultyId prop is null or undefined when attempting upload.");
+    if (!subjectCode || !title) {
+        setMessage("Please fill in Subject Code and Title.");
         return;
     }
 
-
     const formData = new FormData();
-    formData.append("faculty_id", FacultyId); 
     formData.append("subject_code", subjectCode);
     formData.append("title", title);
     formData.append("description", description);
     formData.append("file", file);
+    formData.append("faculty_id", FacultyId);
 
     try {
       const res = await axios.post("http://localhost:5000/api/notes/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: { "Content-Type": "multipart/form-data", "Authorization": `Bearer ${authToken}` },
       });
       setMessage(res.data.message || "Upload successful!");
       setSubjectCode("");
@@ -74,7 +78,7 @@ const NotesUpload = ({ FacultyId }) => {
         <div className="form-group">
           <input
             type="text"
-            placeholder="Title"
+            placeholder="Title (e.g., Lecture 1 Notes)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="input-field"
@@ -84,7 +88,7 @@ const NotesUpload = ({ FacultyId }) => {
 
         <div className="form-group">
           <textarea
-            placeholder="Description (Optional)"
+            placeholder="Description (Optional, e.g., Covers chapters 1-3)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="input-field textarea-field"
@@ -94,7 +98,7 @@ const NotesUpload = ({ FacultyId }) => {
         <div className="form-group">
             <input
               type="text"
-              placeholder="Subject Code"
+              placeholder="Subject Code (e.g., CS101)"
               value={subjectCode}
               onChange={(e) => setSubjectCode(e.target.value)}
               className="input-field"

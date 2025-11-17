@@ -1,69 +1,62 @@
-# backend/routes/notes_routes.py
 from flask import Blueprint, request, jsonify, send_from_directory, current_app
 import os
 from werkzeug.utils import secure_filename
-from utils.jwt_utils import token_required # Ensure this accepts roles
+from utils.jwt_utils import token_required 
 from models.notes_model import NotesModel
-from models.timetable_model import get_subject_id_or_create, get_dept_id_or_create, get_offering_id_or_create
 from utils.db_connection import get_db_connection
 notes_bp = Blueprint('notes', __name__, url_prefix='/api/notes')
 
-# UPLOAD_FOLDER from app.py configuration
-# current_app.config['UPLOAD_FOLDER'] is set in app.py from Config.UPLOAD_FOLDER
-
-ALLOWED_EXTENSIONS = {'pdf', 'docx', 'pptx', 'txt', 'zip'} # Added zip as common for study material
+ALLOWED_EXTENSIONS = {'pdf', 'docx', 'pptx', 'txt', 'zip'} 
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ---------- Upload Note ----------
 @notes_bp.route('/upload', methods=['POST'])
-@token_required(roles=['faculty', 'admin']) # Only faculty or admin can upload notes
+@token_required(roles=['faculty', 'admin']) 
 def upload_note():
-    # Retrieve faculty_user_id from the authenticated token
     faculty_user_id = request.user['user_id']
 
-    # Data from form-data (for file uploads)
+    # Data from form-data (now only minimum inputs)
     subject_code = request.form.get('subject_code')
-    subject_name = request.form.get('subject_name') # Added subject_name for consistency with timetable
-    dept_code = request.form.get('dept_code')
-    semester_str = request.form.get('semester')
     title = request.form.get('title')
     description = request.form.get('description', None)
     file = request.files.get('file')
+    faculty_id=request.form.get('faculty_id')
 
-    # Basic validation
-    if not all([subject_code, subject_name, dept_code, semester_str, title, file]):
-        return jsonify({"success": False, "error": "Missing required fields (subject_code, subject_name, dept_code, semester, title, file)."}), 400
+    # Basic validation for the fields we expect
+    if not all([subject_code, title, file, faculty_id]):
+        return jsonify({"success": False, "error": "Missing required fields (subject_code, title, file)."}), 400
 
     if not allowed_file(file.filename):
         return jsonify({"success": False, "error": f"File type not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
 
     try:
-        semester = int(semester_str)
-    except ValueError:
-        return jsonify({"success": False, "error": "'semester' must be an integer."}), 400
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT dept_id FROM faculty_details WHERE faculty_id = %s", (faculty_id,))
+        faculty_dept_result = cursor.fetchone()
+        cursor.close()
+        conn.close()
 
-    try:
-        # Get faculty_id from the authenticated user_id
-        faculty_id = NotesModel.get_faculty_id_from_user_id(faculty_user_id)
-        if not faculty_id:
-            return jsonify({"success": False, "error": "Faculty record not found for the authenticated user."}), 404
+        if not faculty_dept_result:
+            return jsonify({"success": False, "error": "Faculty's department not found."}), 404
+        faculty_dept_id = faculty_dept_result[0]
 
-        # Use timetable_model's helpers to ensure subject, department, and offering exist
-        subject_id = get_subject_id_or_create(subject_code.strip(), subject_name.strip())
-        if not subject_id:
-            return jsonify({"success": False, "error": f"Could not find or create subject '{subject_name}'."}), 500
+        subject_info = NotesModel.get_subject_details_by_code(subject_code.strip())
+        if not subject_info:
+            return jsonify({"success": False, "error": f"Subject with code '{subject_code}' not found."}), 404
+        
+        subject_id = subject_info['subject_id']
+        subject_name = subject_info['subject_name']
 
-        dept_id = get_dept_id_or_create(dept_code.strip(), dept_code.strip()) # Assuming dept_name == dept_code for simplicity here
-        if not dept_id:
-            return jsonify({"success": False, "error": f"Could not find or create department '{dept_code}'."}), 500
-
-        offering_id = get_offering_id_or_create(subject_id, dept_id, semester)
-        if not offering_id:
-            return jsonify({"success": False, "error": f"Could not find or create subject offering for {subject_code} in {dept_code} semester {semester}."}), 500
-
-        # Secure filename and save the file
+        # 3. Infer the offering_id based on subject_id and faculty_dept_id
+        offering_id_result = NotesModel.get_offering_id_for_faculty_upload(subject_id, faculty_dept_id)
+        
+        if not offering_id_result:
+            return jsonify({"success": False, "error": f"No active subject offering found for '{subject_code}' in your department. Please contact admin to set up the offering."}), 404
+        
+        offering_id = offering_id_result 
         filename = secure_filename(file.filename)
         upload_folder = current_app.config['UPLOAD_FOLDER']
         os.makedirs(upload_folder, exist_ok=True)
@@ -71,7 +64,6 @@ def upload_note():
         file.save(file_path)
 
         # Store a relative URL or path
-        # Assuming the frontend will use the '/uploads' static route configured in app.py
         file_url_for_db = os.path.join(current_app.static_url_path, filename).replace('\\', '/')
 
         # Insert the note record using the model
@@ -81,7 +73,7 @@ def upload_note():
             "success": True,
             "message": "Note uploaded successfully",
             "note_id": note_id,
-            "file_url": file_url_for_db # Return the full path for immediate use
+            "file_url": file_url_for_db
         }), 201
 
     except Exception as e:

@@ -3,8 +3,10 @@ import axios from "axios";
 
 const getAuthToken = () => localStorage.getItem("token");
 
+// (Styles component is omitted for brevity, assume it's included as in the original)
+
 const FacultyTimetable = ({ facultyId }) => { // facultyId here is the ID of the CURRENTLY LOGGED-IN faculty
-  const effectiveFacultyId = parseInt(facultyId, 10); 
+  const effectiveFacultyId = parseInt(facultyId, 10);
   if (isNaN(effectiveFacultyId)) {
     console.error("Invalid facultyId provided:", facultyId);
   }
@@ -39,6 +41,8 @@ const FacultyTimetable = ({ facultyId }) => { // facultyId here is the ID of the
 
     setLoadingTimetable(true);
     try {
+      // 1. UPDATED URL to match the backend route: /faculty/<int:semester>/<string:department_name>/<string:section>
+      // We use departmentCode as department_name here.
       const url = `http://localhost:5000/api/timetable/faculty/${semester}/${departmentCode}${requestSection}`;
       console.log("Fetching timetable from URL:", url);
       const token = getAuthToken();
@@ -93,8 +97,9 @@ const FacultyTimetable = ({ facultyId }) => { // facultyId here is the ID of the
       [day]: {
         ...prev[day],
         [period]: {
-            ...prev?.[day]?.[period], 
-            subject_code: value,
+          // Preserve existing data like faculty_name if present
+          ...prev?.[day]?.[period], 
+          subject_code: value,
         },
       },
     }));
@@ -126,28 +131,45 @@ const FacultyTimetable = ({ facultyId }) => { // facultyId here is the ID of the
     for (const day of days) {
       for (const period of periods) {
         const subjectCode = timetable?.[day]?.[period]?.subject_code || "";
-        entries.push({
-          day: day,
-          period: period,
-          subject_code: subjectCode.trim(),
-          // faculty_id is removed from here
-        });
+
+        // Only include entries that have a subject code
+        if (subjectCode.trim()) {
+            entries.push({
+                day: day,
+                period: period,
+                subject_code: subjectCode.trim(),
+                // 2. ADDED subject_name and moved faculty_id into the entry, as required by the backend
+                subject_name: subjectCode.trim(), // Placeholder: Subject Name is set to be the same as subject_code
+                faculty_id: effectiveFacultyId, // ASSUMPTION: The current user is assigning themselves
+            });
+        }
       }
     }
+    
+    // Check if there are any entries to save
+    if (entries.length === 0) {
+        setMessage("Timetable is empty. Nothing to save.");
+        setIsError(true);
+        return;
+    }
+
 
     const payloadSection = departmentHasSections(departmentCode) && section ? section : ''; 
 
     const payloadToSend = {
       semester: parseInt(semester, 10),
-      department: departmentCode, 
+      // 3. UPDATED KEY NAMES to match backend expectations
+      department_name: departmentCode, // Department Name (e.g., "AIML")
+      department_code: departmentCode, // Department Code (e.g., "AIML" - assuming code and name are the same in the select box)
       section: payloadSection,
-      faculty_id: effectiveFacultyId, // ADDED: The ID of the faculty making the change
+      // faculty_id is NOT needed here, it's now in each entry
       entries: entries,
     };
     console.log("JSON Payload being sent to backend:", JSON.stringify(payloadToSend, null, 2));
 
     try {
-      const res = await axios.post("http://localhost:5000/api/timetable/faculty", payloadToSend, {
+      // 4. UPDATED URL to match the backend route: /api/timetable/faculty/save
+      const res = await axios.post("http://localhost:5000/api/timetable/faculty/save", payloadToSend, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -177,6 +199,7 @@ const FacultyTimetable = ({ facultyId }) => { // facultyId here is the ID of the
     }
   };
 
+  // ... (rest of the component's JSX remains the same) ...
   return (
     <div style={containerStyle}>
       <h2 style={titleStyle}>CLASS TIMETABLE - EDIT/UPLOAD</h2>
@@ -275,9 +298,8 @@ const FacultyTimetable = ({ facultyId }) => { // facultyId here is the ID of the
   );
 };
 
-// ... (styles remain the same) ...
 const containerStyle = {
-  backgroundColor: '#f0f8ff', // Light blue background
+  backgroundColor: '#f0f8ff', 
   borderRadius: '10px',
   padding: '30px',
   boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
@@ -383,4 +405,5 @@ const saveButtonStyle = {
     backgroundColor: '#2ecc71',
   },
 };
+
 export default FacultyTimetable;

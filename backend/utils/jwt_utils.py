@@ -57,6 +57,9 @@ def token_required(roles=None): # roles can be a list of strings, e.g., ['facult
                     return jsonify({"message": f"Access denied: Requires one of {', '.join(roles)} role(s)"}), 403
             # --- End Role-based access control check ---
 
-            return decorated_function(*args, **kwargs)
+            # 🚨 CRITICAL FIX HERE: Call the original function 'f'
+            return f(*args, **kwargs)
+
+        # 🚨 CRITICAL FIX HERE: Return the inner wrapper function 'decorated_function'
         return decorated_function
     return decorator

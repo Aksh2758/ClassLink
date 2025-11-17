@@ -1,10 +1,5 @@
 # backend/models/notes_model.py
 from utils.db_connection import get_db_connection
-from models.timetable_model import (
-    get_subject_id_or_create,
-    get_dept_id_or_create,
-    get_offering_id_or_create # Reusing this helper
-)
 from datetime import datetime
 
 class NotesModel:
@@ -166,6 +161,95 @@ class NotesModel:
         except Exception as e:
             print(f"Error in delete_note_by_id: {e}")
             conn.rollback()
+            raise
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+
+    def get_subject_id_and_name_by_code(subject_code):
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT subject_id, subject_name FROM subjects WHERE subject_code = %s", (subject_code,))
+            result = cursor.fetchone()
+            return result
+        except Exception as e:
+            print(f"Error in get_subject_id_and_name_by_code: {e}")
+            raise
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+
+    def get_latest_offering_for_subject_and_dept(subject_id, dept_id):
+        """
+        Fetches the offering_id for a given subject and department.
+        If multiple exist, it returns the one with the highest semester.
+        This is an assumption for simplicity.
+        """
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            query = """
+            SELECT offering_id FROM subject_offerings 
+            WHERE subject_id = %s AND dept_id = %s
+            ORDER BY semester DESC, offering_id DESC -- Order by semester to get the latest, then by ID to be deterministic
+            LIMIT 1
+            """
+            cursor.execute(query, (subject_id, dept_id))
+            result = cursor.fetchone()
+            return result[0] if result else None
+        except Exception as e:
+            print(f"Error in get_latest_offering_for_subject_and_dept: {e}")
+            raise
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+
+    def get_subject_details_by_code(subject_code):
+        """
+        Looks up subject_id and subject_name for a given subject_code.
+        Returns a dictionary {subject_id, subject_name} or None if not found.
+        """
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True) # Use dictionary=True for named columns
+            cursor.execute("SELECT subject_id, subject_name FROM subjects WHERE subject_code = %s", (subject_code,))
+            result = cursor.fetchone()
+            return result
+        except Exception as e:
+            print(f"Error in get_subject_details_by_code: {e}")
+            raise
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+
+    def get_offering_id_for_faculty_upload(subject_id, faculty_dept_id):
+        """
+        Fetches the most relevant offering_id for a subject within a faculty's department.
+        Assumes the latest semester offering if multiple exist within that department.
+        """
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            query = """
+            SELECT offering_id FROM subject_offerings 
+            WHERE subject_id = %s AND dept_id = %s
+            ORDER BY semester DESC, offering_id DESC -- Prioritize highest semester, then latest ID
+            LIMIT 1
+            """
+            cursor.execute(query, (subject_id, faculty_dept_id))
+            result = cursor.fetchone()
+            return result[0] if result else None
+        except Exception as e:
+            print(f"Error in get_offering_id_for_faculty_upload: {e}")
             raise
         finally:
             if cursor: cursor.close()

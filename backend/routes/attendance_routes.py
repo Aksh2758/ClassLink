@@ -1,12 +1,12 @@
 # backend/routes/attendance_routes.py
 from flask import Blueprint, request, jsonify
-from utils.jwt_utils import token_required # Ensure this is the updated token_required that accepts roles
+from utils.jwt_utils import token_required
 from models.attendance_model import AttendanceModel
-from models.timetable_model import get_student_department_semester_section # Reusing existing helper
+# from models.timetable_model import get_student_department_semester_section # Not used in this snippet
 from datetime import datetime
 from utils.db_connection import get_db_connection
 
-attendance_bp = Blueprint("attendance", __name__, url_prefix="/api/attendance") # Changed blueprint name to 'attendance' and added url_prefix
+attendance_bp = Blueprint("attendance", __name__, url_prefix="/api/attendance")
 
 # Helper function to convert date string to date object
 def parse_date(date_str):
@@ -25,36 +25,31 @@ def submit_class_attendance():
     data = request.json
     faculty_user_id = request.user['user_id']
 
-    required_fields = ["date", "period_number", "dept_code", "semester",
+    # --- MODIFIED: Removed "period_number" from required_fields ---
+    required_fields = ["date", "dept_code", "semester",
                        "subject_code", "section", "attendance_list"]
 
     if not all(k in data for k in required_fields):
         return jsonify({"success": False, "error": "Missing required fields"}), 400
 
     date_str = data["date"]
-    period_number = data["period_number"]
     dept_code = data["dept_code"]
     semester = data["semester"]
     subject_code = data["subject_code"]
     section = data["section"]
-    attendance_list = data["attendance_list"] # List of {'student_id': <int>, 'status': 'present'/'absent'}
+    attendance_list = data["attendance_list"] 
 
     if not isinstance(attendance_list, list) or not attendance_list:
         return jsonify({"success": False, "error": "'attendance_list' must be a non-empty list"}), 400
 
     if not parse_date(date_str):
         return jsonify({"success": False, "error": "Invalid date format. Expected YYYY-MM-DD"}), 400
-    if not isinstance(period_number, int):
-        return jsonify({"success": False, "error": "'period_number' must be an integer"}), 400
+
     if not isinstance(semester, int):
         return jsonify({"success": False, "error": "'semester' must be an integer"}), 400
 
     try:
         # 1. Get assignment_id from the class details
-        # This function might need to be created or adapted from timetable_model if it doesn't exist
-        # For simplicity, we'll try to get the class_session_id directly.
-        
-        # We need to find the assignment_id first to then potentially create the class_session
         ids = AttendanceModel._get_entity_ids(
             dept_code=dept_code,
             subject_code=subject_code,
@@ -80,6 +75,7 @@ def submit_class_attendance():
             return jsonify({"success": False, "error": "Subject offering not found for the given department and semester."}), 404
         offering_id = offering[0]
 
+        print(f"Checking assignment for offering_id: {offering_id}, faculty_id: {faculty_id}, section: {section}")
         cursor.execute(
             "SELECT assignment_id FROM faculty_assignment WHERE offering_id = %s AND faculty_id = %s AND section = %s",
             (offering_id, faculty_id, section)
@@ -98,7 +94,6 @@ def submit_class_attendance():
         session_id = AttendanceModel.create_class_session_from_template(
             assignment_id=assignment_id,
             session_date_str=date_str,
-            period_number=period_number
         )
 
         if not session_id:
@@ -155,7 +150,7 @@ def get_students_for_attendance_marking():
 
 
 @attendance_bp.route("/class/history", methods=["GET"])
-@token_required(roles=['faculty', 'admin']) # Faculty can view class attendance history
+@token_required(roles=['faculty', 'admin'])
 def get_class_attendance_history():
     """
     Endpoint to view the history of class sessions for a specific class.
@@ -200,7 +195,7 @@ def get_class_attendance_history():
 
 
 @attendance_bp.route("/session/<int:session_id>/details", methods=["GET"])
-@token_required(roles=['faculty', 'admin', 'student']) # Students can view their attendance for a session too
+@token_required(roles=['faculty', 'admin', 'student'])
 def get_session_attendance_details(session_id):
     """
     Endpoint to get detailed attendance status for all students in a specific class session.
@@ -225,7 +220,7 @@ def get_session_attendance_details(session_id):
             if not filtered_details:
                 return jsonify({"success": True, "message": "No attendance found for you in this session.", "details": []}), 200
             
-            return jsonify({"success": True, "details": filtered_details[0]}), 200 # A student only sees their own entry
+            return jsonify({"success": True, "details": filtered_details[0]}), 200
         
         return jsonify({"success": True, "details": details}), 200
     except Exception as e:
@@ -234,7 +229,7 @@ def get_session_attendance_details(session_id):
 
 
 @attendance_bp.route("/update/<int:attendance_id>", methods=["PUT"])
-@token_required(roles=['faculty', 'admin']) # Only faculty or admin can update attendance status
+@token_required(roles=['faculty', 'admin'])
 def update_single_attendance_entry(attendance_id):
     """
     Endpoint to update the status of a single student's attendance record (identified by attendance_id).
