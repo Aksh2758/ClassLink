@@ -3,87 +3,112 @@ import axios from 'axios';
 import './MarksEntryForm.css'; // Assuming you'll create this CSS file
 
 const FacultyInternalMarks = () => {
-    const [selectedClass, setSelectedClass] = useState('XII-A');
-    const [selectedSubject, setSelectedSubject] = useState('PHYSICS');
-    const [students, setStudents] = useState([]);
+    const getAuthToken = () => localStorage.getItem('token'); // Helper from your attendance module
+    const [semester, setSemester] = useState('');
+    const [dept_code, setDept_code] = useState('');
+    const [section, setSection] = useState('');
+    const [subject_code, setSubject_code] = useState('');
+
+    // States for fetched data
+    const [subjects, setSubjects] = useState([]); // To store subjects for the selected dept/semester
+    const [students, setStudents] = useState([]); // Students with their marks
+
+    // UI states
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
 
-    // Hardcoded mappings for demonstration based on your image and backend logic
-    // In a real app, these would come from API calls (e.g., /api/dropdowns/classes, /api/dropdowns/subjects)
-    const classOptions = [
-        { label: 'XII-A', dept_code: 'CSE', semester: 6, section: 'A' },
-        { label: 'XII-B', dept_code: 'CSE', semester: 6, section: 'B' },
-        { label: 'XI-A', dept_code: 'CSE', semester: 5, section: 'A' },
-    ];
-    const subjectOptions = [
-        { label: 'PHYSICS', subject_code: 'PH101' },
-        { label: 'CHEMISTRY', subject_code: 'CH101' },
-        { label: 'MATHS', subject_code: 'MA101' },
-    ];
-    const iaTypes = ['IA1', 'IA2', 'IA3']; // These should ideally also come from backend if dynamic
+    // Hardcoded IA types for now, ideally these could also come from an API if dynamic
+    const iaTypes = ['IA1', 'IA2', 'IA3'];
 
-    const currentClassDetails = classOptions.find(opt => opt.label === selectedClass);
-    const currentSubjectDetails = subjectOptions.find(opt => opt.label === selectedSubject);
-
-    const fetchStudentMarks = async () => {
-        if (!currentClassDetails || !currentSubjectDetails) {
-            setError("Please select a valid class and subject.");
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-        setSuccessMessage(null);
-
-        const token = localStorage.getItem('token'); // Assuming JWT token is stored here
-        if (!token) {
-            setError("Authentication token not found. Please log in.");
-            setLoading(false);
-            return;
-        }
-
-        try {
-            const response = await axios.get('http://localhost:5000/api/marks/class-scores', { // Adjust URL as needed
-                params: {
-                    dept_code: currentClassDetails.dept_code,
-                    semester: currentClassDetails.semester,
-                    section: currentClassDetails.section,
-                    subject_code: currentSubjectDetails.subject_code,
-                },
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (response.data.success) {
-                // Initialize marks state for each student
-                const studentsWithEditableMarks = response.data.students.map(student => {
-                    const iaScores = { ...student.ia_scores };
-                    iaTypes.forEach(ia => {
-                        if (iaScores[ia] === undefined) {
-                            iaScores[ia] = ''; // Initialize empty for editing
-                        }
-                    });
-                    return { ...student, ia_scores: iaScores };
-                });
-                setStudents(studentsWithEditableMarks);
-            } else {
-                setError(response.data.error || "Failed to fetch student marks.");
-                setStudents([]);
-            }
-        } catch (err) {
-            console.error("Error fetching student marks:", err);
-            setError("Failed to load student data. Please try again.");
-            setStudents([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    // Effect to fetch subjects when dept_code or semester changes
     useEffect(() => {
+        const fetchSubjects = async () => {
+            if (!dept_code || !semester) {
+                setSubjects([]); // Clear subjects if department or semester is not selected
+                setSubject_code(''); // Reset subject selection
+                return;
+            }
+            try {
+                const token = getAuthToken();
+                if (!token) {
+                    setError("Authentication token not found. Please log in.");
+                    return;
+                }
+                const res = await axios.get(`http://localhost:5000/api/subjects/by-dept-semester`, { // Adjust API path if needed
+                    params: { dept_code, semester },
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                setSubjects(res.data.subjects || []);
+                setSubject_code(''); // Reset selected subject when options change
+            } catch (err) {
+                console.error("Failed to fetch subjects:", err.response ? err.response.data : err.message);
+                setError("Failed to fetch subjects. Please try again.");
+                setSubjects([]);
+            }
+        };
+        fetchSubjects();
+    }, [dept_code, semester]);
+
+    // Effect to fetch students and their marks when all filter criteria are selected
+    useEffect(() => {
+        const fetchStudentMarks = async () => {
+            if (!dept_code || !semester || !section || !subject_code) {
+                setStudents([]); // Clear students if any filter is missing
+                return;
+            }
+
+            setLoading(true);
+            setError(null);
+            setSuccessMessage(null);
+
+            const token = getAuthToken();
+            if (!token) {
+                setError("Authentication token not found. Please log in.");
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const response = await axios.get('http://localhost:5000/api/marks/class-scores', {
+                    params: {
+                        dept_code,
+                        semester: parseInt(semester), // Ensure semester is an integer
+                        section,
+                        subject_code,
+                    },
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.data.success) {
+                    const studentsWithEditableMarks = response.data.students.map(student => {
+                        const iaScores = { ...student.ia_scores };
+                        iaTypes.forEach(ia => {
+                            if (iaScores[ia] === undefined) {
+                                iaScores[ia] = ''; // Initialize empty for editing
+                            }
+                        });
+                        return { ...student, ia_scores: iaScores };
+                    });
+                    setStudents(studentsWithEditableMarks);
+                } else {
+                    setError(response.data.error || "Failed to fetch student marks.");
+                    setStudents([]);
+                }
+            } catch (err) {
+                console.error("Error fetching student marks:", err.response ? err.response.data : err.message);
+                setError("Failed to load student data. Please try again.");
+                setStudents([]);
+            } finally {
+                setLoading(false);
+            }
+        };
         fetchStudentMarks();
-    }, [selectedClass, selectedSubject]); // Refetch when class or subject changes
+    }, [dept_code, semester, section, subject_code]); // Refetch when any of these change
 
     const handleMarkChange = (studentId, iaName, value) => {
         setStudents(prevStudents =>
@@ -106,7 +131,7 @@ const FacultyInternalMarks = () => {
         setError(null);
         setSuccessMessage(null);
 
-        const token = localStorage.getItem('token');
+        const token = getAuthToken();
         if (!token) {
             setError("Authentication token not found. Please log in.");
             setLoading(false);
@@ -134,10 +159,10 @@ const FacultyInternalMarks = () => {
         }
 
         try {
-            const response = await axios.post('http://localhost:5000/api/marks/update', { // Adjust URL
-                dept_code: currentClassDetails.dept_code,
-                semester: currentClassDetails.semester,
-                subject_code: currentSubjectDetails.subject_code,
+            const response = await axios.post('http://localhost:5000/api/marks/update', {
+                dept_code,
+                semester: parseInt(semester),
+                subject_code,
                 marks_entries: marksEntries,
             }, {
                 headers: {
@@ -148,13 +173,13 @@ const FacultyInternalMarks = () => {
 
             if (response.data.success) {
                 setSuccessMessage(response.data.message || "Marks updated successfully!");
-                // Optionally refetch to confirm saved state
+                // Optionally refetch to confirm saved state (if marks can be updated by others)
                 // fetchStudentMarks();
             } else {
                 setError(response.data.error || "Failed to update marks.");
             }
         } catch (err) {
-            console.error("Error updating marks:", err.response ? err.response.data : err);
+            console.error("Error updating marks:", err.response ? err.response.data : err.message);
             setError("Failed to update marks. Please check your input and try again.");
         } finally {
             setLoading(false);
@@ -167,28 +192,70 @@ const FacultyInternalMarks = () => {
 
             <div className="filters">
                 <div className="filter-group">
-                    <label htmlFor="selectClass">Select Class</label>
+                    <label htmlFor="semesterSelect">Semester</label>
                     <select
-                        id="selectClass"
-                        value={selectedClass}
-                        onChange={(e) => setSelectedClass(e.target.value)}
+                        id="semesterSelect"
+                        value={semester}
+                        onChange={e => {
+                            setSemester(e.target.value);
+                            setSubject_code(''); // Reset subject when semester changes
+                        }}
                         className="dropdown"
                     >
-                        {classOptions.map(option => (
-                            <option key={option.label} value={option.label}>{option.label}</option>
+                        <option value="">Select Semester</option>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
+                            <option key={s} value={s}>{s}</option>
                         ))}
                     </select>
                 </div>
+
                 <div className="filter-group">
-                    <label htmlFor="selectSubject">Select Subject</label>
+                    <label htmlFor="deptCodeSelect">Department</label>
                     <select
-                        id="selectSubject"
-                        value={selectedSubject}
-                        onChange={(e) => setSelectedSubject(e.target.value)}
+                        id="deptCodeSelect"
+                        value={dept_code}
+                        onChange={e => {
+                            setDept_code(e.target.value);
+                            setSubject_code(''); // Reset subject when department changes
+                        }}
                         className="dropdown"
                     >
-                        {subjectOptions.map(option => (
-                            <option key={option.label} value={option.label}>{option.label}</option>
+                        <option value="">Select Department</option>
+                        <option value="AIML">AIML</option>
+                        <option value="CSE">CSE</option>
+                        <option value="ISE">ISE</option>
+                        <option value="ECE">ECE</option>
+                    </select>
+                </div>
+
+                <div className="filter-group">
+                    <label htmlFor="sectionSelect">Section</label>
+                    <select
+                        id="sectionSelect"
+                        value={section}
+                        onChange={e => setSection(e.target.value)}
+                        className="dropdown"
+                    >
+                        <option value="">Select Section</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                    </select>
+                </div>
+
+                <div className="filter-group">
+                    <label htmlFor="subjectCodeSelect">Subject</label>
+                    <select
+                        id="subjectCodeSelect"
+                        value={subject_code}
+                        onChange={e => setSubject_code(e.target.value)}
+                        className="dropdown"
+                        disabled={!dept_code || !semester} // Disable if dept or semester not selected
+                    >
+                        <option value="">Select Subject</option>
+                        {subjects.map(sub => (
+                            <option key={sub.subject_code} value={sub.subject_code}>
+                                {sub.subject_name} ({sub.subject_code})
+                            </option>
                         ))}
                     </select>
                 </div>
@@ -234,7 +301,12 @@ const FacultyInternalMarks = () => {
                 </div>
             )}
             {!loading && !error && students.length === 0 && (
-                <p className="no-data-message">No students found for the selected class and subject, or no data available.</p>
+                <p className="no-data-message">
+                    {!dept_code || !semester || !section || !subject_code
+                        ? "Please select all filters (Semester, Department, Section, Subject) to view student marks."
+                        : "No students found for the selected criteria, or no marks available."
+                    }
+                </p>
             )}
 
             <button
