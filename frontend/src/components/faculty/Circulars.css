@@ -1,0 +1,180 @@
+/* src/components/CircularsModule.css */
+.circulars-module-container {
+    font-family: Arial, sans-serif;
+    background-color: #f0f2f5;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.circulars-header {
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.circulars-header h1 {
+    color: #333;
+    margin: 0;
+}
+
+.user-info-bar {
+    background-color: #1a2a47; /* Dark blue from your image */
+    color: #ffffff;
+    padding: 8px 15px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-action-button {
+    background-color: #e74c3c; /* Red color */
+    color: white;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.user-action-button.logout {
+    background-color: #e74c3c;
+}
+
+.circulars-main-content {
+    display: grid;
+    grid-template-columns: 2fr 1fr; /* Adjust column width as needed */
+    gap: 20px;
+}
+
+.compose-circular-section,
+.recent-announcements-section {
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+}
+
+.compose-circular-section h2,
+.recent-announcements-section h2 {
+    color: #333;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    font-weight: bold;
+}
+
+.form-group input[type="text"],
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1em;
+    box-sizing: border-box; /* Include padding in width */
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.post-circular-button {
+    background-color: #007bff; /* Blue button */
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.3s ease;
+}
+
+.post-circular-button:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.post-circular-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.recent-announcements-section .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.recent-announcements-section .view-all-button {
+    background-color: #007bff; /* Blue button */
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.recent-announcements-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.recent-announcements-section li {
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.recent-announcements-section li:last-child {
+    border-bottom: none;
+}
+
+.recent-announcements-section li a {
+    text-decoration: none;
+    color: #333;
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.recent-announcements-section li a:hover {
+    color: #007bff;
+}
+
+.send-notification-link {
+    display: block;
+    margin-top: 20px;
+    color: #007bff;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.error-message {
+    color: #e74c3c;
+    margin-top: 10px;
+}
+
+.success-message {
+    color: #28a745;
+    margin-top: 10px;
+}

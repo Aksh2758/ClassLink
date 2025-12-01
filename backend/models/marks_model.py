@@ -37,6 +37,48 @@ class MarksModel:
         finally:
             if cursor: cursor.close()
             if conn: conn.close()
+    
+    @staticmethod
+    def get_user_id_from_student_id(student_id):
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM student_details WHERE student_id = %s", (student_id,))
+            result = cursor.fetchone()
+            return result[0] if result else None
+        except Exception as e:
+            print(f"Error in get_user_id_from_student_id: {e}")
+            return None
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+
+    @staticmethod
+    def get_subject_name_by_offering_id(offering_id):
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT s.subject_name
+                FROM subject_offerings so
+                JOIN subjects s ON so.subject_id = s.subject_id
+                WHERE so.offering_id = %s
+                """,
+                (offering_id,)
+            )
+            result = cursor.fetchone()
+            return result[0] if result else "Unknown Subject"
+        except Exception as e:
+            print(f"Error in get_subject_name_by_offering_id: {e}")
+            return "Unknown Subject"
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
 
     @staticmethod
     def get_students_for_class_with_marks(dept_code, semester, section, subject_code):

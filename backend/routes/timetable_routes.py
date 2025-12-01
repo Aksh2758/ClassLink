@@ -1,21 +1,24 @@
 # backend/routes/timetable_routes.py
 from flask import Blueprint, request, jsonify
-from utils.jwt_utils import token_required # Import the new middleware
+from utils.jwt_utils import token_required
 from models.timetable_model import (
     save_timetable_entry,
     get_timetable_for_class,
-    get_student_department_semester_section
+    get_student_department_semester_section,
+    get_department_id_by_name, # <-- NEW: Import this helper
+    get_department_id_by_code  # <-- NEW: Import this helper
 )
+from routes.notification_routes import emit_notification_to_user, get_students_in_department_and_semester 
 
 timetable_bp = Blueprint("timetable", __name__, url_prefix="/api/timetable")
 
-@timetable_bp.route("/faculty/save", methods=["POST"]) # Changed route name for clarity
-@token_required(roles=['faculty', 'admin']) # Only faculty or admin can save timetables
+@timetable_bp.route("/faculty/save", methods=["POST"])
+@token_required(roles=['faculty', 'admin'])
 def save_timetable():
     data = request.json
     semester = data.get("semester")
-    department_name = data.get("department_name") # Changed to department_name for clarity
-    department_code = data.get("department_code") # Added department_code for new dept creation
+    department_name = data.get("department_name")
+    department_code = data.get("department_code")
     section = data.get("section")
     entries = data.get("entries")
 
@@ -28,21 +31,20 @@ def save_timetable():
     if not entries or not isinstance(entries, list):
         return jsonify({"success": False, "error": "Missing or invalid 'entries' data in request"}), 400
     
-    # Ensure the user making the request is a faculty member whose faculty_id is passed,
-    # or that an admin is making the request and `faculty_id` is correct.
-    # For now, we assume the `faculty_id` in each entry is valid and passed correctly.
-    # In a real app, you might check if request.user['user_id'] matches the faculty_id,
-    # or if the user is an admin allowed to assign any faculty.
+    # --- Notification Logic Preparation ---
+    # We need the dept_id to target students
+    dept_id = get_department_id_by_code(department_code) # Assuming this function exists or will be created
+    if not dept_id:
+        print(f"Warning: Department with code '{department_code}' not found for notification targeting.")
 
     processed_count = 0
     errors = []
 
     for e in entries:
-        if not all(k in e for k in ["day", "period", "subject_code", "subject_name", "faculty_id"]): # Added subject_name
+        if not all(k in e for k in ["day", "period", "subject_code", "subject_name", "faculty_id"]):
             errors.append(f"Invalid entry found: {e}. Missing 'day', 'period', 'subject_code', 'subject_name', or 'faculty_id'.")
             continue
         
-        # Further type validation for individual fields
         if not isinstance(e["day"], str) or not e["day"]:
             errors.append(f"Invalid 'day' in entry: {e}. Must be a non-empty string.")
             continue
@@ -52,7 +54,7 @@ def save_timetable():
         if not isinstance(e["subject_code"], str):
             errors.append(f"Invalid 'subject_code' in entry: {e}. Must be a string.")
             continue
-        if not isinstance(e["subject_name"], str): # Validate subject_name
+        if not isinstance(e["subject_name"], str):
             errors.append(f"Invalid 'subject_name' in entry: {e}. Must be a string.")
             continue
         if not e["faculty_id"]:
@@ -63,12 +65,12 @@ def save_timetable():
             save_timetable_entry(
                 semester=semester,
                 department_name=department_name,
-                department_code=department_code, # Pass department_code
+                department_code=department_code,
                 section=section,
                 day_of_week=e["day"],
                 period_number=e["period"],
                 subject_code=e["subject_code"],
-                subject_name=e["subject_name"], # Pass subject_name
+                subject_name=e["subject_name"],
                 faculty_id=e["faculty_id"]
             )
             processed_count += 1
@@ -76,13 +78,36 @@ def save_timetable():
             errors.append(f"Database error for entry {e}: {db_err}")
             print(f"Database error saving timetable entry: {db_err}")
 
+    # --- Emit Notification AFTER all entries are processed ---
+    final_dept_id = get_department_id_by_code(department_code)
+    if processed_count > 0 and final_dept_id:
+        notification_message = f"Timetable for {department_name} (Semester {semester}, Section {section if section else 'All'}) has been updated."
+        
+        # Get all student user IDs for this department and semester
+        student_user_ids = get_students_in_department_and_semester(final_dept_id, semester)
+        
+        for student_id in student_user_ids:
+            emit_notification_to_user(
+                user_id=student_id,
+                notification_data={
+                    "user_id": student_id,
+                    "type": "timetable_update",
+                    "message": notification_message,
+                    "related_id": None
+                }
+            )
+        print(f"Timetable update notification emitted to {len(student_user_ids)} students.")
+    elif processed_count > 0 and not dept_id:
+         print(f"Timetable saved but could not emit targeted notifications: Department {department_name} (code: {department_code}) not found.")
+
+
     if errors:
         if processed_count > 0:
             return jsonify({
-                "success": True, # Still partially successful
+                "success": True,
                 "message": f"Timetable partially saved. {processed_count} entries processed. Errors occurred for {len(errors)} entries.",
                 "errors": errors
-            }), 206 # Partial Content
+            }), 206
         else:
             return jsonify({
                 "success": False,
@@ -92,13 +117,12 @@ def save_timetable():
 
     return jsonify({"success": True, "message": "Timetable saved successfully", "processed_entries": processed_count}), 200
 
-@timetable_bp.route("/student", methods=["GET"]) # Removed student_id from URL
-@token_required(roles=['student']) # Only authenticated students can view their timetable
+@timetable_bp.route("/student", methods=["GET"])
+@token_required(roles=['student'])
 def get_student_timetable():
-    user_id = request.user['user_id'] # Get user_id from the authenticated token
+    user_id = request.user['user_id']
 
     try:
-        # Get student's academic details using their user_id
         student_details = get_student_department_semester_section(user_id)
 
         if not student_details:
@@ -109,7 +133,7 @@ def get_student_timetable():
             semester=student_details["semester"],
             section=student_details.get("section")
         )
-        return jsonify({"success": True, "timetable": data}), 200 # Wrapped in success object
+        return jsonify({"success": True, "timetable": data}), 200
     except Exception as e:
         print(f"Error fetching student timetable for user {user_id}: {e}")
         return jsonify({"success": False, "error": "Internal server error while fetching student timetable."}), 500
@@ -117,21 +141,18 @@ def get_student_timetable():
 
 @timetable_bp.route("/faculty/<int:semester>/<string:department_name>", defaults={'section': None}, methods=["GET"])
 @timetable_bp.route("/faculty/<int:semester>/<string:department_name>/<string:section>", methods=["GET"])
-@token_required(roles=['faculty', 'admin']) # Only faculty or admin can view faculty timetables
+@token_required(roles=['faculty', 'admin'])
 def get_faculty_timetable_by_class_semester(semester, department_name, section):
-    user_id = request.user['user_id'] # Authenticated user
+    user_id = request.user['user_id']
     user_role = request.user['role']
 
     try:
-        # In a more granular system, you might check if this faculty_id matches the requested department.
-        # For simplicity, if they are faculty or admin, they can query.
         data = get_timetable_for_class(department_name, semester, section)
 
         if not data:
-            return jsonify({"success": True, "message": "No timetable found for this department, semester, and section"}), 200 # Return 200 with empty data
-            # Or return 404 if "not found" is considered an error state. For timetable, empty list is often okay.
-
-        return jsonify({"success": True, "timetable": data}), 200 # Wrapped in success object
+            return jsonify({"success": True, "message": "No timetable found for this department, semester, and section"}), 200
+            
+        return jsonify({"success": True, "timetable": data}), 200
     except Exception as e:
         print(f"Error fetching faculty timetable by department/semester/section for user {user_id}: {e}")
         return jsonify({"success": False, "error": "Internal server error while fetching timetable."}), 500

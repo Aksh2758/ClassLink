@@ -284,3 +284,14 @@ def get_student_department_semester_section(user_id): # Renamed parameter to use
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
+
+def get_department_id_by_code(department_code):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT dept_id FROM departments WHERE dept_code = %s", (department_code,))
+        result = cursor.fetchone()
+        return result['dept_id'] if result else None
+    finally:
+        cursor.close()
+        conn.close()

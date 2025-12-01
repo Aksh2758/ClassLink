@@ -254,3 +254,23 @@ class NotesModel:
         finally:
             if cursor: cursor.close()
             if conn: conn.close()
+    @staticmethod
+    def get_student_user_ids_for_offering(offering_id):
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                """
+                SELECT u.id AS user_id
+                FROM users u
+                JOIN student_details sd ON u.id = sd.user_id
+                JOIN subject_offerings so ON sd.dept_id = so.dept_id AND sd.semester = so.semester
+                WHERE so.offering_id = %s
+                """,
+                (offering_id,)
+            )
+            return [row['user_id'] for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+            conn.close()
+    

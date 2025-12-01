@@ -5,9 +5,11 @@ from models.marks_model import MarksModel
 from models.timetable_model import ( # Reusing helpers from timetable model
     get_subject_id_or_create,
     get_dept_id_or_create,
-    get_offering_id_or_create
+    get_offering_id_or_create,
+    get_department_id_by_code
 )
-from models.attendance_model import AttendanceModel # For _get_entity_ids (faculty_id)
+from models.attendance_model import AttendanceModel
+from routes.notification_routes import emit_notification_to_user
 
 marks_bp = Blueprint('marks', __name__, url_prefix='/api/marks')
 
@@ -40,8 +42,6 @@ def get_class_scores_for_faculty():
             section=section,
             subject_code=subject_code
         )
-        # Frontend expects IA1, IA2, IA3 keys, ensure they are present
-        # Or, the frontend can handle potentially missing keys
         return jsonify({"success": True, "students": students_with_marks}), 200
     except Exception as e:
         print(f"Error fetching class scores for faculty: {e}")
@@ -89,18 +89,17 @@ def update_class_marks():
             return jsonify({"success": False, "error": "Faculty record not found for the authenticated user."}), 403
 
         # Get offering_id
-        dept_ids = AttendanceModel._get_entity_ids(dept_code=dept_code)
-        dept_id = dept_ids.get('dept_id')
-        subject_ids = AttendanceModel._get_entity_ids(subject_code=subject_code)
-        subject_id = subject_ids.get('subject_id')
+        dept_id_from_code = get_department_id_by_code(dept_code)
+        subject_id_from_code = get_subject_id_or_create(subject_code, "Temporary Name")
 
-        if not dept_id or not subject_id:
+        if not dept_id_from_code or not subject_id_from_code:
             return jsonify({"success": False, "error": "Department or Subject not found."}), 404
 
-        offering_id = get_offering_id_or_create(subject_id, dept_id, semester)
+        offering_id = get_offering_id_or_create(subject_id_from_code, dept_id_from_code, semester)
         if not offering_id:
             return jsonify({"success": False, "error": "Subject offering not found or could not be created."}), 500
-
+        subject_name = MarksModel.get_subject_name_by_offering_id(offering_id)
+        students_notified = set()
         # Process each mark entry
         success_count = 0
         for entry in marks_entries:
@@ -122,7 +121,21 @@ def update_class_marks():
                 success_count += 1
             else:
                 print(f"Could not get/create IA type ID for '{ia_name}'")
-
+        for student_id in students_notified:
+            student_user_id = MarksModel.get_user_id_from_student_id(student_id)
+            if student_user_id:
+                notification_message = f"Your IA scores for {subject_name} ({subject_code}) have been updated!"
+                emit_notification_to_user(
+                    user_id=student_user_id,
+                    notification_data={
+                        "user_id": student_user_id,
+                        "type": "marks_update",
+                        "message": notification_message,
+                        "related_id": offering_id # Link to the subject offering, as marks are per subject
+                    }
+                )
+        print(f"Marks update notifications emitted to {len(students_notified)} students for offering {offering_id}.")
+        
         return jsonify({
             "success": True,
             "message": f"Successfully processed {success_count} mark entries.",

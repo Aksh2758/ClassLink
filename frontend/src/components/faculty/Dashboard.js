@@ -63,7 +63,7 @@ const FacultyDashboard = () => {
             case 'internal-marks':
                 return <FacultyIAMarks facultyId={faculty.faculty_id} />;
             case 'circulars':
-                return <FacultyCirculars facultyId={faculty.faculty_id} />;
+                return <FacultyCirculars />;
             case 'profile':
                 return <FacultyProfile facultyId={faculty.faculty_id} />;
             default:

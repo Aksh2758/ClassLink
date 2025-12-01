@@ -1,6 +1,6 @@
 # backend/models/circulars_model.py
 from utils.db_connection import get_db_connection
-from models.attendance_model import AttendanceModel # Reusing _get_entity_ids for faculty/student dept
+from models.attendance_model import AttendanceModel 
 
 class CircularsModel:
     @staticmethod
@@ -22,10 +22,9 @@ class CircularsModel:
             if conn: conn.close()
 
     @staticmethod
-    def create_circular(faculty_id, title, content, audience, dept_id=None):
+    def create_circular(faculty_id, title, content, audience, dept_id=None, attachment_path=None):
         """
-        Creates a new circular.
-        dept_id is optional and only relevant if audience is 'specific_dept'.
+        Creates a new circular, including an optional attachment path.
         """
         conn = None
         cursor = None
@@ -34,10 +33,10 @@ class CircularsModel:
             cursor = conn.cursor()
             
             query = """
-            INSERT INTO circulars (faculty_id, title, content, audience, dept_id)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO circulars (faculty_id, title, content, audience, dept_id, attachment_path)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(query, (faculty_id, title, content, audience, dept_id))
+            cursor.execute(query, (faculty_id, title, content, audience, dept_id, attachment_path))
             conn.commit()
             return cursor.lastrowid
         except Exception as e:
@@ -49,9 +48,72 @@ class CircularsModel:
             if conn: conn.close()
 
     @staticmethod
+    def get_all_student_user_ids():
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM student_details")
+            return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error getting all student user IDs: {e}")
+            return []
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+    @staticmethod
+    def get_all_faculty_user_ids():
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM faculty_details")
+            return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error getting all faculty user IDs: {e}")
+            return []
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+    
+    @staticmethod
+    def get_student_user_ids_by_department(dept_id):
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM student_details WHERE dept_id = %s", (dept_id,))
+            return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error getting student user IDs by department: {e}")
+            return []
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+
+    @staticmethod
+    def get_faculty_user_ids_by_department(dept_id):
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM faculty_details WHERE dept_id = %s", (dept_id,))
+            return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error getting faculty user IDs by department: {e}")
+            return []
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+            
+    @staticmethod
     def get_circulars_for_user(user_id, role):
         """
-        Fetches circulars relevant to a specific user based on their role and department.
+        Fetches circulars relevant to a specific user, including attachment path.
         """
         conn = None
         cursor = None
@@ -68,7 +130,8 @@ class CircularsModel:
                 c.audience,
                 d.dept_name,
                 d.dept_code,
-                fd.name AS posted_by_faculty
+                fd.name AS posted_by_faculty,
+                c.attachment_path # Include attachment path
             FROM
                 circulars c
             LEFT JOIN
@@ -79,11 +142,9 @@ class CircularsModel:
             """
             params = []
             
-            # Everyone sees 'all' circulars
             where_clauses = ["c.audience = 'all'"]
 
             if role == 'student':
-                # Students also see circulars for 'students' and their specific department
                 student_ids = AttendanceModel._get_entity_ids(student_user_id=user_id)
                 student_dept_id = student_ids.get('student_dept_id')
 
@@ -93,9 +154,8 @@ class CircularsModel:
                     params.append(student_dept_id)
             
             elif role == 'faculty':
-                # Faculty also see circulars for 'faculty' and their specific department
                 faculty_ids = AttendanceModel._get_entity_ids(faculty_user_id=user_id)
-                faculty_dept_id = faculty_ids.get('dept_id') # Note: _get_entity_ids returns dept_id for faculty_user_id if department exists
+                faculty_dept_id = faculty_ids.get('dept_id')
                 
                 where_clauses.append("c.audience = 'faculty'")
                 if faculty_dept_id:
@@ -103,10 +163,6 @@ class CircularsModel:
                     params.append(faculty_dept_id)
 
             elif role == 'admin':
-                # Admins see all circulars (no additional filtering beyond 'all' or explicit audience)
-                # Admins essentially have permission to view everything posted regardless of audience targeting
-                # If an admin posts a circular for 'students', an admin should still see it in their list
-                # So we just ensure they see all specific audiences as well
                 where_clauses.append("c.audience IN ('students', 'faculty', 'specific_dept')")
 
 
@@ -124,7 +180,7 @@ class CircularsModel:
 
     @staticmethod
     def get_circular_by_id(circular_id):
-        """Fetches a single circular by its ID."""
+        """Fetches a single circular by its ID, including attachment path."""
         conn = None
         cursor = None
         try:
@@ -140,7 +196,8 @@ class CircularsModel:
                 d.dept_name,
                 d.dept_code,
                 fd.name AS posted_by_faculty,
-                c.faculty_id # Include original faculty_id for auth checks
+                c.faculty_id,
+                c.attachment_path # Include attachment path
             FROM
                 circulars c
             LEFT JOIN
@@ -159,8 +216,8 @@ class CircularsModel:
             if conn: conn.close()
 
     @staticmethod
-    def update_circular(circular_id, title, content, audience, dept_id=None):
-        """Updates an existing circular."""
+    def update_circular(circular_id, title, content, audience, dept_id=None, attachment_path=None):
+        """Updates an existing circular, including attachment path."""
         conn = None
         cursor = None
         try:
@@ -168,10 +225,10 @@ class CircularsModel:
             cursor = conn.cursor()
             query = """
             UPDATE circulars
-            SET title = %s, content = %s, audience = %s, dept_id = %s
+            SET title = %s, content = %s, audience = %s, dept_id = %s, attachment_path = %s
             WHERE circular_id = %s
             """
-            cursor.execute(query, (title, content, audience, dept_id, circular_id))
+            cursor.execute(query, (title, content, audience, dept_id, attachment_path, circular_id))
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
@@ -203,7 +260,7 @@ class CircularsModel:
 
     @staticmethod
     def get_recent_circulars(limit=5):
-        """Fetches a limited number of most recent circulars, for general view."""
+        """Fetches a limited number of most recent circulars, for general view, including attachment path."""
         conn = None
         cursor = None
         try:
@@ -215,7 +272,8 @@ class CircularsModel:
                 c.title,
                 c.posted_at,
                 c.audience,
-                d.dept_name
+                d.dept_name,
+                c.attachment_path # Include attachment path
             FROM circulars c
             LEFT JOIN departments d ON c.dept_id = d.dept_id
             ORDER BY c.posted_at DESC
