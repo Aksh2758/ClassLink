@@ -1,134 +1,239 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom"; // Import useNavigate
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import FacultyNavBar from "./Navbar";
-import FacultyTimetable from './timetable';
-import NotesUpload from './notes'; // Assuming you'll create these
-// import FacultyAttendance from './attendance'; // Assuming you'll create these
-import FacultyIAMarks from './IAMarks'; // Assuming you'll create these
-import FacultyCirculars from './Circular'; // Assuming you'll create these
-import FacultyProfile from './Profile'; // Assuming you'll create these
+
+// Import Faculty-specific components (ensure these files exist)
+import FacultyTimetable from "./timetable";
+import NotesUpload from "./notes";
 import AttendanceForm from "./AttendanceForm";
+import FacultyIAMarks from "./IAMarks";
+import FacultyCirculars from "./Circular";
+import FacultyProfile from "./Profile";
+import FacultyNavBar from "./Navbar"; // Assuming this is the Faculty-specific navigation bar
+
+// --- Reusable Card Component (Copied from Student Dashboard) ---
+// This component provides the clean white card, shadow, and hover effect.
+const DashboardCard = ({ title, description, icon, onClick }) => {
+    // State for handling the hover effect style
+    const [isHovered, setIsHovered] = useState(false);
+
+    // Dynamic style based on hover state
+    const cardStyle = {
+        backgroundColor: "white",
+        padding: "30px",
+        borderRadius: "16px",
+        boxShadow: isHovered
+            ? "0 15px 35px rgba(0,0,0,0.15)"
+            : "0 8px 25px rgba(0,0,0,0.1)",
+        textAlign: "center",
+        cursor: "pointer",
+        transition: "all 0.3s ease",
+        border: "1px solid #e0e0e0",
+        transform: isHovered ? "translateY(-10px)" : "translateY(0)"
+    };
+
+    const iconStyle = { fontSize: "3.5rem", marginBottom: "15px" };
+    const titleStyle = { margin: "0 0 10px 0", color: "#2c3e50", fontSize: "1.4rem" };
+    const descriptionStyle = { color: "#7f8c8d", margin: "0" };
+
+    return (
+        <div
+            onClick={onClick}
+            style={cardStyle}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            {/* Note: The icon prop here should be a string (like the emoji '🗓') 
+               or a React component/element (e.g., <CalendarDays size={56} />) */}
+            <div style={iconStyle}>{icon}</div>
+            <h3 style={titleStyle}>{title}</h3>
+            <p style={descriptionStyle}>{description}</p>
+        </div>
+    );
+};
+// --------------------------------------------------------------------------
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:5000";
 
 const FacultyDashboard = () => {
-    const [faculty, setFaculty] = useState(null); // Renamed to 'faculty' for consistency
-    const [selectedModule, setSelectedModule] = useState(null); // New state to track selected module
+    const [faculty, setFaculty] = useState(null);
+    const [selectedModule, setSelectedModule] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    // Removed 'message' state since the inline-style template doesn't use the Tailwind alert box
+
+    const navigate = useNavigate();
     const token = localStorage.getItem("token");
-    const navigate = useNavigate(); // Initialize useNavigate
 
     useEffect(() => {
-        console.log("Token from localStorage:", token);
-        const fetchDetails = async () => {
-            if (!token) {
-                console.error("No token found. Redirect to login.");
-                navigate('/login'); // Redirect to login if no token
-                return;
-            }
+        if (!token) {
+            navigate("/login");
+            return;
+        }
 
+        const fetchDetails = async () => {
             try {
-                const res = await axios.get("http://127.0.0.1:5000/api/faculty/details", {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                console.log("Fetched Faculty data:", res.data);
+                const res = await axios.get(
+                    `${API_BASE_URL}/api/faculty/details`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` },
+                    }
+                );
                 setFaculty(res.data.faculty);
             } catch (err) {
-                if (err.response) {
-                    console.error("Backend error:", err.response.status, err.response.data);
-                    // You might want to display this error to the user
-                    if (err.response.status === 401) { // e.g., token expired or invalid
-                        localStorage.removeItem("token");
-                        navigate('/'); // Go back to login
-                    }
-                } else {
-                    console.error("Network error:", err);
+                console.error("Error fetching faculty:", err);
+
+                if (err.response?.status === 401) {
+                    localStorage.removeItem("token");
+                    navigate("/login");
                 }
+            } finally {
+                setLoading(false);
             }
         };
 
         fetchDetails();
-    }, [token, navigate]); // Add navigate to dependency array
+    }, [token, navigate]);
 
-    if (!faculty) {
-        return <div style={{ padding: "20px" }}><h3>Loading faculty details...</h3></div>;
+    if (loading || !faculty) {
+        return (
+            <div style={{ padding: "40px", textAlign: "center" }}>
+                <h2>{loading ? "Loading your dashboard..." : "Error loading faculty details."}</h2>
+            </div>
+        );
     }
 
     const renderModule = () => {
+        const gridStyle = {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '25px',
+            marginTop: '40px'
+        };
+
         switch (selectedModule) {
-            case 'timetable':
-                return <FacultyTimetable facultyId={faculty.faculty_id} />; 
-            case 'notes':         
-                return <NotesUpload FacultyId={faculty.faculty_id} />;
-            case 'attendance':
-                return <AttendanceForm />;
-            case 'internal-marks':
+            case "timetable":
+                return <FacultyTimetable facultyId={faculty.faculty_id} />;
+            case "notes":
+                return <NotesUpload facultyId={faculty.faculty_id} />;
+            case "attendance":
+                return <AttendanceForm facultyId={faculty.faculty_id} />;
+            case "internal-marks":
                 return <FacultyIAMarks facultyId={faculty.faculty_id} />;
-            case 'circulars':
-                return <FacultyCirculars />;
-            case 'profile':
+            case "circulars":
+                return <FacultyCirculars facultyId={faculty.faculty_id} />;
+            case "profile":
                 return <FacultyProfile facultyId={faculty.faculty_id} />;
+
             default:
                 return (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginTop: '30px' }}>
-                        <DashboardCard title="Timetable" description="Manage class schedules." onClick={() => setSelectedModule('timetable')} />
-                        <DashboardCard title="Notes" description="Upload and manage study materials." onClick={() => setSelectedModule('notes')} />
-                        <DashboardCard title="Attendance" description="Record and view student attendance." onClick={() => setSelectedModule('attendance')} />
-                        <DashboardCard title="Internal Marks" description="Enter and update internal assessment scores." onClick={() => setSelectedModule('internal-marks')} />
-                        <DashboardCard title="Circulars" description="Send announcements to students." onClick={() => setSelectedModule('circulars')} />
-                        <DashboardCard title="Profile" description="View and update your personal details." onClick={() => setSelectedModule('profile')} />
+                    <div style={gridStyle}>
+                        <DashboardCard
+                            title="Timetable"
+                            description="View your class schedule"
+                            icon="🗓️" // Using emojis for visual consistency with the student template
+                            onClick={() => setSelectedModule("timetable")}
+                        />
+                        <DashboardCard
+                            title="Upload Notes"
+                            description="Share study materials with students"
+                            icon="📂"
+                            onClick={() => setSelectedModule("notes")}
+                        />
+                        <DashboardCard
+                            title="Attendance"
+                            description="Mark student attendance"
+                            icon="📝"
+                            onClick={() => setSelectedModule("attendance")}
+                        />
+                        <DashboardCard
+                            title="Internal Marks"
+                            description="Enter student assessment scores"
+                            icon="💯"
+                            onClick={() => setSelectedModule("internal-marks")}
+                        />
+                        <DashboardCard
+                            title="Circulars"
+                            description="Post announcements & notices"
+                            icon="📢"
+                            onClick={() => setSelectedModule("circulars")}
+                        />
+                        <DashboardCard
+                            title="Profile"
+                            description="View and update your details"
+                            icon="🧑‍🏫"
+                            onClick={() => setSelectedModule("profile")}
+                        />
                     </div>
                 );
         }
     };
 
+    // Style for the back button to handle hover effect (copied from student template)
+    const backButtonBaseStyle = {
+        marginBottom: "20px",
+        padding: "12px 24px",
+        backgroundColor: "#e74c3c", // Red color for consistency
+        color: "white",
+        border: "none",
+        borderRadius: "8px",
+        fontSize: "1rem",
+        cursor: "pointer",
+        boxShadow: "0 4px 10px rgba(231, 76, 60, 0.3)",
+        transition: "all 0.3s"
+    };
+    
+    // Inline style for the secondary background
+    const secondaryBgStyle = {
+        backgroundColor: "white", 
+        borderRadius: "16px",
+        boxShadow: "0 8px 25px rgba(0,0,0,0.1)",
+        padding: "30px", // Added padding for module content
+        minHeight: "70vh"
+    };
+
+
     return (
-        <div style={{ padding: "20px" }}>
-            <FacultyNavBar facultyID={faculty.faculty_id} facultyName={faculty.name} />
-            {selectedModule && (
-                <button
-                    onClick={() => setSelectedModule(null)}
-                    style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-                >
-                    Back to Dashboard
-                </button>
-            )}
-            {renderModule()}
+        <div style={{ minHeight: "100vh", backgroundColor: "#f5f7fa" }}>
+            {/* Navbar */}
+            <FacultyNavBar
+                facultyName={faculty.name}
+                facultyID={faculty.faculty_id}
+                onModuleSelect={setSelectedModule}
+            />
+
+            <div style={{ padding: "30px" }}>
+                {/* Welcome Header */}
+                {!selectedModule && (
+                    <div style={{ marginBottom: "30px" }}>
+                        
+                    </div>
+                )}
+
+                {/* Back Button */}
+                {selectedModule && (
+                    <button
+                        onClick={() => setSelectedModule(null)}
+                        style={backButtonBaseStyle}
+                        // Inline hover effects
+                        onMouseOver={(e) => e.target.style.backgroundColor = "#c0392b"}
+                        onMouseOut={(e) => e.target.style.backgroundColor = "#e74c3c"}
+                    >
+                        ← Back to Dashboard
+                    </button>
+                )}
+
+                {/* Render Selected Module or Cards */}
+                {selectedModule ? (
+                    <div style={secondaryBgStyle}>
+                        {renderModule()}
+                    </div>
+                ) : (
+                    renderModule() // Renders the dashboard cards grid
+                )}
+            </div>
         </div>
     );
-};
-
-// Modified DashboardCard to take an onClick prop instead of a link
-const DashboardCard = ({ title, description, onClick }) => (
-    <div style={cardStyle} onClick={onClick}>
-        <h3>{title}</h3>
-        <p>{description}</p>
-        <button style={cardLinkStyle}>Go to {title}</button> {/* Changed Link to button */}
-    </div>
-);
-
-const cardStyle = {
-    backgroundColor: '#e0eaf0',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    textAlign: 'center',
-    cursor: 'pointer', // Make it look clickable
-    transition: 'transform 0.2s ease-in-out', // Add a subtle hover effect
-    '&:hover': {
-        transform: 'scale(1.03)',
-    }
-};
-
-const cardLinkStyle = {
-    display: 'inline-block',
-    marginTop: '15px',
-    padding: '8px 15px',
-    backgroundColor: '#3498db',
-    color: 'white',
-    textDecoration: 'none',
-    borderRadius: '4px',
-    border: 'none', // Added border: none for consistency
-    cursor: 'pointer',
-    transition: 'background-color 0.3s ease',
 };
 
 export default FacultyDashboard;

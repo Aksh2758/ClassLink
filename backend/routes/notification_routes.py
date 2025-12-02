@@ -1,6 +1,6 @@
 # routes/notifications_routes.py
 from flask import Blueprint, jsonify, request
-from config import db_connection # Assuming db_connection is your function to get a DB cursor
+from utils.db_connection import get_db_connection
 from utils.jwt_utils import token_required # Assuming you have a token_required decorator
 from flask_socketio import emit
 from config import socketio # Import socketio instance
@@ -9,7 +9,7 @@ notifications_bp = Blueprint('notifications_bp', __name__, url_prefix='/api/noti
 
 # Helper function to fetch notifications for a user
 def get_user_notifications(user_id):
-    conn = db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
@@ -36,7 +36,7 @@ def get_notifications(current_user):
 @token_required
 def mark_notification_read(current_user, notification_id):
     user_id = current_user['id']
-    conn = db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
@@ -58,7 +58,7 @@ def mark_notification_read(current_user, notification_id):
 def emit_notification_to_user(user_id, notification_data):
     """Emits a notification to a specific user's socket room."""
     # Store in DB first
-    conn = db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
@@ -82,7 +82,7 @@ def emit_notification_to_user(user_id, notification_data):
         conn.close()
 
 def get_students_in_department_and_semester(dept_id, semester):
-    conn = db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
@@ -97,7 +97,7 @@ def get_students_in_department_and_semester(dept_id, semester):
         conn.close()
 
 def get_all_students_user_ids():
-    conn = db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT u.id AS user_id FROM users u JOIN student_details sd ON u.id = sd.user_id")
@@ -107,7 +107,7 @@ def get_all_students_user_ids():
         conn.close()
 
 def get_all_faculty_user_ids():
-    conn = db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT u.id AS user_id FROM users u JOIN faculty_details fd ON u.id = fd.user_id")

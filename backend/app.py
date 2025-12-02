@@ -14,7 +14,7 @@ from routes.subject_routes import subject_bp
 from routes.marks_routes import marks_bp
 from routes.circulars_routes import circulars_bp 
 from routes.notification_routes import notifications_bp # <--- NEW: Import notifications blueprint
-
+from routes.profile_routes import profile_bp
 # --- Initialize Flask app ---
 app = Flask(__name__, static_url_path='/uploads', static_folder='uploads')
 app.config.from_object(Config)
@@ -43,6 +43,7 @@ app.register_blueprint(subject_bp)
 app.register_blueprint(marks_bp)
 app.register_blueprint(circulars_bp, url_prefix='/api/circulars')
 app.register_blueprint(notifications_bp) # <--- NEW: Register notifications blueprint
+app.register_blueprint(profile_bp)
 
 # --- Root Route (for testing) ---
 @app.route("/", methods=["GET"])

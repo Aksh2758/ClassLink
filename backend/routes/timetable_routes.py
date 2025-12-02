@@ -5,7 +5,7 @@ from models.timetable_model import (
     save_timetable_entry,
     get_timetable_for_class,
     get_student_department_semester_section,
-    get_department_id_by_name, # <-- NEW: Import this helper
+    #get_department_id_by_name, # <-- NEW: Import this helper
     get_department_id_by_code  # <-- NEW: Import this helper
 )
 from routes.notification_routes import emit_notification_to_user, get_students_in_department_and_semester 

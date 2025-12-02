@@ -13,6 +13,7 @@ function App() {
         <Route path="/student/dashboard" element={<StudentDashboard />} />
         <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
         <Route path="/circulars/:circular_id" element={<CircularDetails />} />
+        <Route path="/circulars/:circular_id" element={<CircularDetails />} />
       </Routes>
     </Router>
   );

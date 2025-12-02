@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const StudentTimetable = ({ studentId }) => {
-  const [timetableData, setTimetableData] = useState({}); // Transformed data for display
+const StudentTimetable = () => {
+  const [timetableData, setTimetableData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -13,18 +13,33 @@ const StudentTimetable = ({ studentId }) => {
     const fetchStudentTimetable = async () => {
       setLoading(true);
       setError(null);
-      try {
-        const res = await axios.get(`http://localhost:5000/api/timetable/student/${studentId}`);
-        const rawTimetable = res.data;
 
-        // Transform the raw data into a more display-friendly format
+      try {
+        const token = localStorage.getItem("token");
+
+        const res = await axios.get(
+          "http://localhost:5000/api/timetable/student",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const rawTimetable = res.data.timetable || [];
+
         const transformedData = {};
         rawTimetable.forEach(entry => {
-          if (!transformedData[entry.day_of_week]) {
-            transformedData[entry.day_of_week] = {};
+          const day = entry.day_of_week;
+          const period = entry.period_number;  // backend uses period_number
+          const subject = entry.subject_code || entry.subject_name;
+
+          if (!transformedData[day]) {
+            transformedData[day] = {};
           }
-          transformedData[entry.day_of_week][entry.period] = entry.subject_code;
+          transformedData[day][period] = subject;
         });
+
         setTimetableData(transformedData);
       } catch (err) {
         console.error("Error fetching student timetable:", err);
@@ -34,42 +49,32 @@ const StudentTimetable = ({ studentId }) => {
       }
     };
 
-    if (studentId) { // Only fetch if studentId is available
-      fetchStudentTimetable();
-    }
-  }, [studentId]);
+    fetchStudentTimetable();
+  }, []);
 
-  if (loading) {
-    return <div style={{ padding: "20px" }}><h3>Loading timetable...</h3></div>;
-  }
-
-  if (error) {
-    return <div style={{ padding: "20px", color: "red" }}><h3>{error}</h3></div>;
-  }
-
-  if (Object.keys(timetableData).length === 0) {
-    return <div style={{ padding: "20px" }}><h3>No timetable available for your class yet.</h3></div>;
-  }
+  if (loading) return <h3 style={{ padding: 20 }}>Loading timetable…</h3>;
+  if (error) return <h3 style={{ padding: 20, color: "red" }}>{error}</h3>;
 
   return (
     <div style={{ padding: "20px" }}>
       <h2>My Timetable</h2>
-      <table border="1" cellPadding="6" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+      <table border="1" cellPadding="6" style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
         <thead>
           <tr>
             <th style={tableHeaderStyle}>Day</th>
-            {periods.map((p) => (
+            {periods.map(p => (
               <th key={p} style={tableHeaderStyle}>Period {p}</th>
             ))}
           </tr>
         </thead>
+
         <tbody>
-          {days.map((day) => (
+          {days.map(day => (
             <tr key={day}>
               <td style={tableCellStyle}>{day}</td>
-              {periods.map((p) => (
+              {periods.map(p => (
                 <td key={p} style={tableCellStyle}>
-                  {timetableData[day]?.[p] || "-"} {/* Display subject or "-" if empty */}
+                  {timetableData[day]?.[p] || "-"}
                 </td>
               ))}
             </tr>
@@ -81,18 +86,17 @@ const StudentTimetable = ({ studentId }) => {
 };
 
 const tableHeaderStyle = {
-    backgroundColor: '#3498db',
-    color: 'white',
-    padding: '10px',
-    textAlign: 'center',
-    border: '1px solid #ccc'
+  backgroundColor: "#3498db",
+  color: "#fff",
+  padding: "10px",
+  textAlign: "center",
+  border: "1px solid #ccc",
 };
 
 const tableCellStyle = {
-    padding: '10px',
-    textAlign: 'center',
-    border: '1px solid #eee'
+  padding: "10px",
+  textAlign: "center",
+  border: "1px solid #eee",
 };
-
 
 export default StudentTimetable;

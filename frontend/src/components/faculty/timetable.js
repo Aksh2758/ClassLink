@@ -26,7 +26,7 @@ const FacultyTimetable = ({ facultyId }) => { // facultyId here is the ID of the
   const allSections = ["A", "B", "C"];
 
   const departmentHasSections = (deptCode) => {
-    return ["CSE", "ECE"].includes(deptCode);
+    return ["CSE", "ECE","AIML"].includes(deptCode);
   };
 
   const fetchExistingTimetable = useCallback(async () => {
@@ -230,7 +230,7 @@ const FacultyTimetable = ({ facultyId }) => { // facultyId here is the ID of the
 
         {departmentHasSections(departmentCode) && ( // Use departmentCode
           <select value={section} onChange={(e) => setSection(e.target.value)} style={selectButtonStyle}>
-            <option value="">SELECT SECTION (Optional)</option>
+            <option value="">SELECT SECTION</option>
             {allSections.map((sec) => (
               <option key={sec} value={sec}>
                 SECTION {sec}

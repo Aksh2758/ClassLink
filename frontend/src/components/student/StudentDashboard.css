@@ -1,0 +1,91 @@
+/* --- Base Dashboard Layout --- */
+.student-dashboard {
+    min-height: 100vh;
+    background-color: #f5f7fa; /* Light grey background */
+}
+
+.dashboard-content-area {
+    padding: 30px;
+}
+
+/* --- Loading State --- */
+.loading-container {
+    padding: 40px;
+    text-align: center;
+}
+
+/* --- Welcome Header --- */
+.welcome-header {
+    margin-bottom: 30px;
+}
+
+.welcome-header h1 {
+    font-size: 2.2rem;
+    color: #2c3e50; /* Dark blue/charcoal */
+    margin-bottom: 5px;
+}
+
+.welcome-header p {
+    color: #7f8c8d; /* Grey text */
+    font-size: 1.1rem;
+}
+
+/* --- Back Button --- */
+.back-button {
+    margin-bottom: 20px;
+    padding: 12px 24px;
+    background-color: #e74c3c; /* Red color */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3);
+    transition: all 0.3s;
+}
+
+.back-button:hover {
+    background-color: #c0392b; /* Darker red on hover */
+    box-shadow: 0 6px 15px rgba(231, 76, 60, 0.5);
+}
+
+/* --- Dashboard Grid for Cards --- */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 25px;
+    margin-top: 40px;
+}
+
+/* --- Card Styles (for the DashboardCard component) --- */
+.dashboard-card {
+    background-color: white;
+    padding: 30px;
+    border-radius: 16px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid #e0e0e0;
+}
+
+.dashboard-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+}
+
+.dashboard-card-icon {
+    font-size: 3.5rem;
+    margin-bottom: 15px;
+}
+
+.dashboard-card h3 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+    font-size: 1.4rem;
+}
+
+.dashboard-card p {
+    color: #7f8c8d;
+    margin: 0;
+}
